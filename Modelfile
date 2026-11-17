@@ -1,0 +1,18 @@
+# "bonsai" = the imported Q2_0 weights ("bonsai-base") + the settings below.
+# The chat template comes from the GGUF metadata.
+# After editing, apply with: docker compose up model-init
+FROM bonsai-base
+
+# Context window. The model supports 262K tokens, but every token of KV
+# cache costs memory (64 KiB per token at FP16, per Bonsai-demo):
+# 32K = ~2 GB, 64K = ~4 GB, 128K = ~8 GB. With 48 GB RAM, 32K (the model
+# card's quickstart value) is a comfortable default. Larger contexts fit in
+# RAM, but they leave fewer layers for the 4 GB GPU.
+PARAMETER num_ctx 32768
+
+# Model card's recommended sampling for thinking mode, the model's default.
+PARAMETER temperature 1.0
+PARAMETER top_p 0.95
+PARAMETER top_k 20
+PARAMETER min_p 0.05
+PARAMETER repeat_penalty 1.0

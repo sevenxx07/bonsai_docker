@@ -1,0 +1,15 @@
+# NVIDIA GPU access for the Ollama server (target: Quadro T1000, 4 GB, Turing).
+# `docker compose` loads this file automatically on top of compose.yaml.
+# CPU-only fallback (no NVIDIA driver/toolkit): docker compose -f compose.yaml up -d
+#
+# Requires on the host: the NVIDIA driver and nvidia-container-toolkit
+# (see README, "Prepare the laptop").
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

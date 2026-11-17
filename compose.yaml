@@ -1,0 +1,89 @@
+# Ternary-Bonsai-2-27B served locally by Ollama.
+# Target: Quadro T1000 (4 GB VRAM) + 48 GB RAM. GPU access lives in compose.override.yaml.
+# Start: docker compose up -d     Test: ./scripts/smoke_test.sh
+name: bonsai
+
+x-model: &model
+  MODEL_REPO: prism-ml/Ternary-Bonsai-2-27B-gguf
+  MODEL_FILE: Ternary-Bonsai-2-27B-Q2_0.gguf
+  # Hugging Face LFS sha256 of the Q2_0 file, used to verify the download.
+  MODEL_SHA256: 4f99aed01b8a877e153f9aa6569a4440fe17c59701cc0953e36d7f460549e70e
+
+services:
+  ollama:
+    # Pinned on purpose: the Q2_0 weights need llama.cpp b11556 or newer.
+    # Ollama 0.40.16 bundles b12177. Older Ollama versions load the file
+    # without any error and then produce garbled output.
+    image: ollama/ollama:0.40.16
+    container_name: bonsai-ollama
+    restart: unless-stopped
+    ports:
+      # Reachable from this machine only. Change it to "11434:11434" to share on your LAN.
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}   # unload after idle to free RAM/VRAM
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Step 1 (one-shot): downloads the exact Q2_0 file and verifies its sha256.
+  # The file is fetched by URL rather than with `ollama pull hf.co/...:Q2_0`,
+  # because that tag also matches "PQ2_0", and Ollama picks the PQ2_0 file,
+  # which it cannot load ("unsupported tensor ... size overflows").
+  model-download:
+    image: curlimages/curl:8.23.0
+    user: "0:0"
+    environment: *model
+    volumes:
+      - model-download:/models
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ -f /models/.registered ]; then echo "already registered, skipping download"; exit 0; fi
+        cd /models
+        curl -fL --retry 5 -C - -o "$$MODEL_FILE" \
+          "https://huggingface.co/$$MODEL_REPO/resolve/main/$$MODEL_FILE"
+        echo "$$MODEL_SHA256  $$MODEL_FILE" | sha256sum -c -
+    restart: "no"
+
+  # Step 2 (one-shot): imports the file once as "bonsai-base", then deletes the
+  # downloaded copy (Ollama keeps its own copy in ollama-data). Finally it builds
+  # "bonsai" = bonsai-base + ./Modelfile parameters. Re-run after editing the
+  # Modelfile with: docker compose up model-init
+  model-init:
+    image: ollama/ollama:0.40.16
+    depends_on:
+      ollama:
+        condition: service_healthy
+      model-download:
+        condition: service_completed_successfully
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      <<: *model
+    volumes:
+      - ./Modelfile:/Modelfile:ro
+      - model-download:/models
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if ! ollama show bonsai-base >/dev/null 2>&1; then
+          printf 'FROM /models/%s\n' "$$MODEL_FILE" > /tmp/Modelfile.base
+          ollama create bonsai-base -f /tmp/Modelfile.base
+        fi
+        rm -f "/models/$$MODEL_FILE" && touch /models/.registered
+        # Cheap layer with the parameters from ./Modelfile, rebuilt on every run.
+        ollama create bonsai -f /Modelfile
+        ollama list
+    restart: "no"
+
+volumes:
+  ollama-data:
+  model-download:

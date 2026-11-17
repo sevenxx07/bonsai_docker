@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this setup, please cite the model it serves."
+title: bonsai_docker - Ollama Docker setup for Ternary-Bonsai-2-27B
+type: software
+license: MIT
+authors:
+  - given-names: Sarah
+references:
+  - type: software
+    title: Ternary-Bonsai-2-27B-gguf
+    authors:
+      - name: PrismML
+    url: https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf
+    license: Apache-2.0
+  - type: software
+    title: Ollama
+    authors:
+      - name: Ollama
+    url: https://github.com/ollama/ollama
+    version: 0.40.16
+    license: MIT

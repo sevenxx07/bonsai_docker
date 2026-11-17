@@ -1,0 +1,19 @@
+# secrets / local config
+.env
+*.env
+!.env.example
+
+# model weights (they live in the Docker volume, never in git)
+*.gguf
+models/
+
+# agent working files and session records
+.claude/
+.agents/
+.cursor/
+.rseng-agent-skills-*
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
